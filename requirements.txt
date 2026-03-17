@@ -1,5 +1,5 @@
 streamlit
-pandas
+streamlit-gsheets
 yfinance
-ta
-st-gsheets-connection
+pandas
+pandas_ta
