@@ -2,50 +2,51 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import yfinance as yf
 
-# 1. 基礎設定
-st.set_page_config(page_title="左側交易助手")
+# 1. 介面標題
+st.title("🛡️ 交易決策助手")
 
-# 2. 連接 Google Sheets
+# 2. 抓取試算表支撐位
 conn = st.connection("gsheets", type=GSheetsConnection)
 try:
     df_sheets = conn.read(ttl="1m")
-    # 讀取第 45 列 (Index 44), 第二欄 (Index 1)
+    # 確保抓取的是 B45 格子
     support_price = float(df_sheets.iloc[44, 1])
 except:
     support_price = 0.0
 
-st.title("🛡️ 左側交易監測")
-
-# 3. 輸入代號
-target = st.text_input("輸入代號 (例: 2330.TW)", value="2330.TW")
+# 3. 輸入代號與數據抓取
+target = st.text_input("輸入股票代號 (例: 2330.TW)", value="2330.TW")
 
 if target:
-    # 抓取近半年數據計算乖離率
-    df = yf.download(target, period="6mo")
-    
+    df = yf.download(target, period="1y")
     if not df.empty:
         curr_price = float(df['Close'].iloc[-1])
-        # 計算 60MA
+        # 計算 60MA (季線)
         ma60 = df['Close'].rolling(window=60).mean().iloc[-1]
+        # 計算乖離率
         bias = ((curr_price - ma60) / ma60) * 100
 
-        # 4. 顯示數據 (修正了導致 TypeError 的地方)
-        col1, col2 = st.columns(2)
-        col1.metric("當前股價", f"{curr_price:.2f}")
-        col2.metric("腳本支撐位", f"{support_price:.2f}")
+        # --- 以下是確保會顯示出來的內容 ---
         
-        # 乖離率單獨顯示，delta 設為 None 避免報錯
-        st.metric(label="60日乖離率", value=f"{bias:.2f}%")
+        # 顯示主要數據
+        st.subheader("📊 關鍵數據")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("當前股價", f"{curr_price:.2f}")
+        col2.metric("雲端支撐", f"{support_price:.2f}")
+        col3.metric("60日乖離", f"{bias:.2f}%")
 
-        # 5. 判定邏輯
+        st.divider() # 畫一條分隔線
+
+        # 顯示判定燈號
+        st.subheader("💡 交易判斷")
         if curr_price <= support_price:
-            st.error(f"🚨 觸發：股價已低於支撐位 ({support_price})")
+            st.error(f"🚨 警報：目前股價 {curr_price:.2f} 已跌破或觸及支撐位！")
         elif bias <= -10:
-            st.warning("⚠️ 警告：負乖離過大，進入觀察區")
+            st.warning(f"⚠️ 警告：負乖離率達 {bias:.2f}%，已進入超跌觀察區。")
         else:
-            st.success("✅ 目前股價尚在支撐上方")
+            st.success("✅ 狀態：目前股價尚在安全區間。")
 
-        # 簡單圖表
+        # 顯示簡單走勢圖
         st.line_chart(df['Close'].tail(100))
     else:
-        st.write("讀取不到股價資料，請檢查代號是否正確。")
+        st.error("找不到該代號的股價資料，請確認輸入格式。")
